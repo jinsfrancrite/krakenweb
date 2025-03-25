@@ -5,7 +5,10 @@
 - Python 3.6 >=
 - Requests
 - PROTONVPN (Opcional)
+- 
 # Instalación
+pip install requests
+pip install bs4
 - (...)
 # Recursos
 - Instalar WireGuard y usar datos de ProtonVPN para conectar a la VPN
