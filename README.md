@@ -9,6 +9,7 @@
 # Instalación
 pip install requests
 pip install bs4
+pip install dotenv
 - (...)
 # Recursos
 - Instalar WireGuard y usar datos de ProtonVPN para conectar a la VPN

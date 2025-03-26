@@ -8,6 +8,11 @@ import string
 import json
 import sys
 from datetime import datetime
+from dotenv import load_dotenv
+import urllib3
+import time
+import argparse
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def download_url(url, folder):
     # Crear la carpeta si no existe
@@ -18,7 +23,7 @@ def download_url(url, folder):
     try:
         response = requests.get(url, verify=False)
         if response.status_code != 200:
-            print(f"Error al descargar {url} - Código de estado: {response.status_code}")
+            #print(f"Error al descargar {url} - Código de estado: {response.status_code}")
             escribir_log("Error al descargar "+url+" - Código de estado: "+response.status)
             return False
 
@@ -50,7 +55,6 @@ def download_url(url, folder):
                 resource_name = os.path.basename(urlparse(resource_url).path)
                 download_resource(resource_url, folder, resource_name)
                 tag['src'] = resource_name  # Modificar la referencia en el HTML
-                print("--> "+resource_name)    
         
         with open(html_file, 'w', encoding='utf-8') as file:
             #file.write(response.text)
@@ -59,7 +63,7 @@ def download_url(url, folder):
         return True
 
     except Exception as e:
-        print(f"Error al procesar {url}: {str(e)}")
+        #print(f"Error al procesar {url}: {str(e)}")
         escribir_log("Error al procesar "+url+": "+str(e))
         return False
 
@@ -78,14 +82,14 @@ def download_resource(url, folder, filename):
             with open(file_path, 'wb') as file:
                 response.raw.decode_content = True
                 shutil.copyfileobj(response.raw, file)
-            print(f"Descargado: {filename}")
+            #print(f"Descargado: {filename}")
             return True
         else:
-            print(f"Error al descargar {url} - Código de estado: {response.status_code}")
+            #print(f"Error al descargar {url} - Código de estado: {response.status_code}")
             escribir_log("Error al descargar "+url+" - Código de estado: "+response.status_code)
             return False
     except Exception as e:
-        print(f"Error al descargar {url}: {str(e)}")
+        #print(f"Error al descargar {url}: {str(e)}")
         escribir_log("Error al descargar "+url+": "+str(e))
         return False
 
@@ -94,8 +98,8 @@ def generate_random_code(length=6):
     return ''.join(random.choice(chars) for _ in range(length))
 
 ##Funcion JSON para retornar en pantalla
-def response_json(boolret, msg):
-    jsonret = json.dumps({"message": msg, "status": boolret})
+def response_json(boolret, msg,data=None):
+    jsonret = json.dumps({"message": msg, "status": boolret, "data": data})
     print(jsonret)
     sys.exit(1)
 
@@ -105,14 +109,35 @@ def escribir_log(mensaje, archivo="app.log"):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_file.write(f"[{timestamp}] {mensaje}\n")
 
+# Función para obtener variables de entorno con valor por defecto
+def get_env_variable(variable_name, default=None):
+    """
+    Obtiene el valor de una variable de entorno.
+    Si no existe, devuelve el valor por defecto.
+    """
+    return os.getenv(variable_name, default)
+
 if __name__ == "__main__":
-    url = input("Introduce la URL de la página web: ").strip()
+    # Cargar las variables de entorno desde el archivo .env
+    load_dotenv()
+    # Ingresar URL o Leer desde consola
+    parser = argparse.ArgumentParser(description="Descargar y procesar recursos de una página web.")
+    parser.add_argument("url", help="URL de la página web")
+    args = parser.parse_args()
+
+    url = args.url.strip()
+
     if not url.startswith(('http://', 'https://')):
         url = 'https://' + url
-    escribir_log("Descargando la página web: "+url)
-    random_code = generate_random_code()    
-    folder = os.path.join("paginas", f"dl_{random_code}")
+    
+    folder_path = get_env_variable('FOLDER_PATH')    
+    timestamp = int(time.time())
+    rcode = generate_random_code()
+    random_code = f"{timestamp}_{rcode}"
+    folder = os.path.join(folder_path, random_code)
+
     if download_url(url, folder):
-        response_json(True, "Pagina y recursos (sin JS) descargados en la carpeta: "+folder)
+        datos = {"web_code": random_code, "path_folder": folder}
+        response_json(True, "Pagina descargada.",datos)
     else:
         response_json(False, "Error al descargar la página web "+url)
