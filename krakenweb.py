@@ -149,6 +149,9 @@ if __name__ == "__main__":
     timestamp = int(time.time())
     rcode = generate_random_code()
     random_code = f"{timestamp}_{rcode}"
+    if not folder_path:
+        folder_path = "/var/www/html/paginas_archivo/"
+    
     folder = os.path.join(folder_path, random_code)
 
     if download_url(url, folder):
