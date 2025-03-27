@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 import urllib3
 import time
 import argparse
+import subprocess
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def download_url(url, folder):
@@ -21,18 +22,27 @@ def download_url(url, folder):
 
     # Descargar el contenido de la URL
     try:
-        response = requests.get(url, verify=False)
-        if response.status_code != 200:
-            #print(f"Error al descargar {url} - Código de estado: {response.status_code}")
-            escribir_log("Error al descargar "+url+" - Código de estado: "+response.status)
-            return False
+        #Si es una URL de abc.com.py usar CURL sino el método con Request
+        if "abc.com.py" in url:
+            # Código a ejecutar si la URL contiene "abc.com.py"
+            result = subprocess.run(["curl", "-k", "-s", url], capture_output=True, text=True, check=True)
+            html_string = result.stdout
+            if not html_string:
+                escribir_log(f"Error al descargar {url} - No se recibió contenido.")
+                html_string = None  # O manejarlo según sea necesario
+        else:
+            response = requests.get(url, verify=False)
+            html_string = response.text
+            if response.status_code != 200:
+                #print(f"Error al descargar {url} - Código de estado: {response.status_code}")
+                escribir_log("Error al descargar "+url+" - Código de estado: "+response.status)
+                return False 
 
         # Guardar el contenido HTML
         html_file = os.path.join(folder, "index.html")
-        
 
         # Parsear el HTML para encontrar recursos
-        soup = BeautifulSoup(response.text, 'html.parser')
+        soup = BeautifulSoup(html_string, 'html.parser')
 
         # Descargar y guardar recursos (CSS, imágenes), excluyendo JS
         for tag in soup.find_all(['link', 'img','script']):
@@ -97,7 +107,7 @@ def generate_random_code(length=6):
     chars = string.ascii_letters + string.digits
     return ''.join(random.choice(chars) for _ in range(length))
 
-##Funcion JSON para retornar en pantalla
+#Funcion JSON para retornar en pantalla
 def response_json(boolret, msg,data=None):
     jsonret = json.dumps({"message": msg, "status": boolret, "data": data})
     print(jsonret)
