@@ -22,30 +22,35 @@ def download_url(url, folder):
 
     # Descargar el contenido de la URL
     try:
+
+        # Guardar el contenido HTML
+        html_file = os.path.join(folder, "index.html")
+        capturar = []
         #Si es una URL de abc.com.py usar CURL sino el método con Request
         if "abc.com.py" in url:
             # Código a ejecutar si la URL contiene "abc.com.py"
             result = subprocess.run(["curl", "-k", "-s", url], capture_output=True, text=True, check=True)
             html_string = result.stdout
+            capturar = ['link', 'img']
+            escribir_log("Sale por CURL")
             if not html_string:
                 escribir_log(f"Error al descargar {url} - No se recibió contenido.")
                 html_string = None  # O manejarlo según sea necesario
         else:
             response = requests.get(url, verify=False)
             html_string = response.text
+            capturar = ['link', 'img','script']
+            escribir_log("Sale por REQUESTS")
             if response.status_code != 200:
                 #print(f"Error al descargar {url} - Código de estado: {response.status_code}")
                 escribir_log("Error al descargar "+url+" - Código de estado: "+response.status)
                 return False 
 
-        # Guardar el contenido HTML
-        html_file = os.path.join(folder, "index.html")
-
         # Parsear el HTML para encontrar recursos
         soup = BeautifulSoup(html_string, 'html.parser')
 
         # Descargar y guardar recursos (CSS, imágenes), excluyendo JS
-        for tag in soup.find_all(['link', 'img','script']):
+        for tag in soup.find_all(capturar):
             if tag.name == 'link' and tag.get('href'):
                 # Solo descargar CSS, ignorar otros tipos de links
                 if 'stylesheet' in tag.get('rel', []):
