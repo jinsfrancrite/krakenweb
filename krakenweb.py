@@ -22,29 +22,49 @@ def download_url(url, folder):
 
     # Descargar el contenido de la URL
     try:
+        # Datos del proxy
+        proxy_user = "informatica_criterion_com_py-dc"
+        proxy_pass = "CriterioN2k19"
+        proxy_host = "la.residential.rayobyte.com"
+        proxy_port = "8000"
 
+        proxy_url = f"{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}"
+        proxies = {
+            "http": proxy_url,
+            "https": proxy_url
+        }
         # Guardar el contenido HTML
         html_file = os.path.join(folder, "index.html")
         capturar = []
-        #Si es una URL de abc.com.py usar CURL sino el método con Request
         if "abc.com.py" in url:
-            # Código a ejecutar si la URL contiene "abc.com.py"
-            result = subprocess.run(["curl", "-k", "-s", url], capture_output=True, text=True, check=True)
+            # Sale por CURL usando proxy
+            #proxy_arg = f"-x {proxy_url}"
+            result = subprocess.run(
+                ["curl", "-k", "-s", "-x", proxy_url, url],
+                capture_output=True, text=True, check=True
+            )
+            
             html_string = result.stdout
             capturar = ['link', 'img']
-            escribir_log("Sale por CURL")
+            escribir_log("Sale por CURL con proxy")
+
             if not html_string:
                 escribir_log(f"Error al descargar {url} - No se recibió contenido.")
-                html_string = None  # O manejarlo según sea necesario
+                html_string = None
         else:
-            response = requests.get(url, verify=False)
-            html_string = response.text
-            capturar = ['link', 'img','script']
-            escribir_log("Sale por REQUESTS")
-            if response.status_code != 200:
-                #print(f"Error al descargar {url} - Código de estado: {response.status_code}")
-                escribir_log("Error al descargar "+url+" - Código de estado: "+response.status)
-                return False 
+            # Sale por REQUESTS usando proxy
+            try:
+                response = requests.get(url, verify=False, proxies=proxies, timeout=15)
+                html_string = response.text
+                capturar = ['link', 'img', 'script']
+                escribir_log("Sale por REQUESTS con proxy")
+
+                if response.status_code != 200:
+                    escribir_log(f"Error al descargar {url} - Código de estado: {response.status_code}")
+                    return False
+            except requests.RequestException as e:
+                escribir_log(f"Error de conexión: {e}")
+                return False
 
         # Parsear el HTML para encontrar recursos
         soup = BeautifulSoup(html_string, 'html.parser')
