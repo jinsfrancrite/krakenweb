@@ -1,3 +1,6 @@
+# Version 1.1
+- Integracion con proxy Rayobyte para consultas
+
 # krakenweb
 - Programa ejecutable que recibe como parámetro una URL, y la descarga en una carpeta con todos sus recursos
 
