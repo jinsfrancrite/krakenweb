@@ -140,7 +140,22 @@ def response_json(boolret, msg,data=None):
 
 #Funcion que escribe Log de Operaciones
 def escribir_log(mensaje, archivo="app.log"):
-    with open(archivo, "a") as log_file:  # "a" para añadir sin sobrescribir
+    # Ruta base desde variable de entorno
+    log_path = get_env_variable('FOLDER_PATH')
+    
+    if not log_path:
+        raise ValueError("La variable de entorno 'FOLDER_PATH' no está definida o es inválida.")
+
+    logs_dir = os.path.join(log_path, "logs")
+    
+    # Crear carpeta si no existe
+    os.makedirs(logs_dir, exist_ok=True)
+    
+    # Ruta completa del archivo de log
+    log_file_path = os.path.join(logs_dir, archivo)
+    
+    # Escribir en el log
+    with open(log_file_path, "a", encoding="utf-8") as log_file:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_file.write(f"[{timestamp}] {mensaje}\n")
 
