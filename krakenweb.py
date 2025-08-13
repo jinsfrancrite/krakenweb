@@ -16,99 +16,97 @@ import subprocess
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def download_url(url, folder):
-    # Crear la carpeta si no existe
     if not os.path.exists(folder):
         os.makedirs(folder)
 
-    # Descargar el contenido de la URL
-    try:
-        # Datos del proxy
-        proxy_user = "informatica_criterion_com_py-dc"
-        proxy_pass = "CriterioN2k19"
-        proxy_host = "la.residential.rayobyte.com"
-        proxy_port = "8000"
+    # Proxy
+    proxy_user = "informatica_criterion_com_py-dc"
+    proxy_pass = "CriterioN2k19"
+    proxy_host = "la.residential.rayobyte.com"
+    proxy_port = "8000"
 
-        proxy_url = f"{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}"
-        proxies = {
-            "http": proxy_url,
-            "https": proxy_url
-        }
-        # Guardar el contenido HTML
-        html_file = os.path.join(folder, "index.html")
-        capturar = []
+    proxy_url = f"{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}"
+    proxies = {
+        "http": proxy_url,
+        "https": proxy_url
+    }
+
+    try:
+        html_string = None
+        status_code = None
+
         if "abc.com.py" in url:
-            # Sale por CURL usando proxy
-            #proxy_arg = f"-x {proxy_url}"
+            # Usar CURL con proxy
             result = subprocess.run(
-                ["curl", "-k", "-s", "-x", proxy_url, url],
-                capture_output=True, text=True, check=True
+                ["curl", "-k", "-s", "-x", proxy_url, "-w", "%{http_code}", url],
+                capture_output=True, text=True
             )
-            
-            html_string = result.stdout
+
+            # El contenido y el código HTTP van juntos, los separamos
+            if result.returncode != 0:
+                escribir_log(f"Error CURL: {result.stderr.strip()}")
+                return False, None, f"Error CURL: {result.stderr.strip()}"
+
+            html_string = result.stdout[:-3]  # quitar últimos 3 caracteres (código HTTP)
+            status_code = result.stdout[-3:]  # los últimos 3 son el código
             capturar = ['link', 'img']
-            escribir_log("Sale por CURL con proxy")
+            escribir_log(f"Sale por CURL con proxy - {url} HTTP {status_code}")
 
             if not html_string:
                 escribir_log(f"Error al descargar {url} - No se recibió contenido.")
-                html_string = None
+                return False, status_code, "Sin contenido recibido"
+
         else:
-            # Sale por REQUESTS usando proxy
+            # Usar requests con proxy
             try:
                 response = requests.get(url, verify=False, proxies=proxies, timeout=15)
+                status_code = response.status_code
                 html_string = response.text
                 capturar = ['link', 'img', 'script']
-                escribir_log("Sale por REQUESTS con proxy")
+                escribir_log(f"Sale por REQUESTS con proxy - {url} HTTP {status_code}")
 
-                if response.status_code != 200:
-                    escribir_log(f"Error al descargar {url} - Código de estado: {response.status_code}")
-                    return False
+                if status_code != 200:
+                    return False, status_code, f"Error HTTP {status_code}"
+
             except requests.RequestException as e:
                 escribir_log(f"Error de conexión: {e}")
-                return False
+                return False, None, f"Error de conexión: {e}"
 
-        # Parsear el HTML para encontrar recursos
+        # Si llegamos aquí, tenemos HTML y status_code
         soup = BeautifulSoup(html_string, 'html.parser')
 
-        # Descargar y guardar recursos (CSS, imágenes), excluyendo JS
+        # Descargar recursos
         for tag in soup.find_all(capturar):
             if tag.name == 'link' and tag.get('href'):
-                # Solo descargar CSS, ignorar otros tipos de links
                 if 'stylesheet' in tag.get('rel', []):
                     resource_url = urljoin(url, tag['href'])
                     resource_name = os.path.basename(urlparse(resource_url).path)
                     download_resource(resource_url, folder, resource_name)
-                    tag['href'] = resource_name  # Modificar la referencia en el HTML
+                    tag['href'] = resource_name
             
             elif tag.name == 'img' and tag.get('src'):
                 resource_url = urljoin(url, tag['src'])
                 resource_name = os.path.basename(urlparse(resource_url).path)
                 download_resource(resource_url, folder, resource_name)
-                tag['src'] = resource_name  # Modificar la referencia en el HTML
+                tag['src'] = resource_name
 
             elif tag.name == 'script' and tag.get('src'):
                 resource_url = urljoin(url, tag['src'])
                 resource_name = os.path.basename(urlparse(resource_url).path)
                 download_resource(resource_url, folder, resource_name)
-                tag['src'] = resource_name  # Modificar la referencia en el HTML
-        
-        with open(html_file, 'w', encoding='utf-8') as file:
-            #file.write(response.text)
+                tag['src'] = resource_name
+
+        with open(os.path.join(folder, "index.html"), 'w', encoding='utf-8') as file:
             file.write(str(soup))
 
-        return True
+        return True, status_code, "Descarga exitosa"
 
     except Exception as e:
-        #print(f"Error al procesar {url}: {str(e)}")
-        escribir_log("Error al procesar "+url+": "+str(e))
-        return False
+        escribir_log(f"Error al procesar {url}: {str(e)}")
+        return False, None, f"Error: {str(e)}"
+
 
 def download_resource(url, folder, filename):
-    # Verificar si es un archivo JavaScript (aunque ya lo filtramos antes)
-    #if filename.lower().endswith('.js'):
-    #    print(f"Omitiendo archivo JavaScript: {filename}")
-    #    escribir_log("Omitiendo archivo JavaScript: "+filename)
-    #    return False
-
     # Descargar el recurso
     try:
         response = requests.get(url, stream=True, verify=False)
@@ -189,8 +187,10 @@ if __name__ == "__main__":
     
     folder = os.path.join(folder_path, random_code)
 
-    if download_url(url, folder):
-        datos = {"web_code": random_code, "path_folder": folder}
+    success, code, msg = download_url(url, folder)
+    if success:
+        datos = {"web_code": random_code, "path_folder": folder,"http_code": code}
         response_json(True, "Pagina descargada.",datos)
     else:
-        response_json(False, "Error al descargar la página web "+url)
+        datos = {"http_code": code, "message_error": msg}
+        response_json(False, "Error al descargar la página web "+url, datos)
