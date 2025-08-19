@@ -59,7 +59,7 @@ def download_url(url, folder):
         else:
             # Usar requests con proxy
             try:
-                response = requests.get(url, verify=False, proxies=proxies, timeout=15)
+                response = requests.get(url, verify=False, proxies=proxies, timeout=30)
                 status_code = response.status_code
                 html_string = response.text
                 capturar = ['link', 'img', 'script']
