@@ -168,9 +168,7 @@ def get_env_variable(variable_name, default=None):
     
     # Validación específica para FOLDER_PATH
     if variable_name == 'FOLDER_PATH' and not value:
-        print("⚠️  FOLDER_PATH no encontrada en variables de entorno")
         value = "/var/www/html/paginas_archivo/"  # Tu ruta fija aquí
-        print(f"✅ Usando ruta por defecto: {value}")
     
     return value
 
