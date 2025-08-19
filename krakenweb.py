@@ -162,8 +162,17 @@ def get_env_variable(variable_name, default=None):
     """
     Obtiene el valor de una variable de entorno.
     Si no existe, devuelve el valor por defecto.
+    Para FOLDER_PATH, si no existe usa un valor fijo.
     """
-    return os.getenv(variable_name, default)
+    value = os.getenv(variable_name, default)
+    
+    # Validación específica para FOLDER_PATH
+    if variable_name == 'FOLDER_PATH' and not value:
+        print("⚠️  FOLDER_PATH no encontrada en variables de entorno")
+        value = "/var/www/html/paginas_archivo/"  # Tu ruta fija aquí
+        print(f"✅ Usando ruta por defecto: {value}")
+    
+    return value
 
 if __name__ == "__main__":
     # Cargar las variables de entorno desde el archivo .env
