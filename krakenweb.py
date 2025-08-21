@@ -149,7 +149,7 @@ def download_resource(url, folder, filename):
             with open(file_path, 'wb') as file:
                 response.raw.decode_content = True
                 shutil.copyfileobj(response.raw, file)
-                    escribir_log("Descargado: "+filename)
+                escribir_log("Descargado: "+filename)
             #return True
             return os.path.join(folder, filename)
         else:
