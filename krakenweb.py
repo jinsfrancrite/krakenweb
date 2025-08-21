@@ -1,7 +1,7 @@
 import os
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, parse_qs, unquote
 import shutil
 import random
 import string
@@ -84,7 +84,8 @@ def download_url(url, folder, folder_cache):
 
             elif tag.name == 'img' and tag.get('src'):
                 resource_url = urljoin(url, tag['src'])
-                resource_name = os.path.basename(urlparse(resource_url).path)
+                urlParsed = urlparse(resource_url)
+                resource_name = obtener_nombre_archivo(resource_url)
                 cached_path = download_resource(resource_url, folder_cache, resource_name)
                 if cached_path:
                     tag['src'] = cached_path  # Apunta al recurso que hay en cache
@@ -111,6 +112,19 @@ def download_url(url, folder, folder_cache):
 
 #CACHE_FOLDER = 'cache'
 ALLOWED_EXTENSIONS = {".css", ".js", ".png", ".jpg", ".jpeg"}
+def obtener_nombre_archivo(url: str) -> str:
+    parsed = urlparse(url)
+
+    # 1. Intentamos sacar el nombre del archivo desde la query (?url=...)
+    query_params = parse_qs(parsed.query)
+    archivo_url = query_params.get("url", [None])[0]
+    
+    if archivo_url:  
+        archivo_url = unquote(archivo_url)
+        return os.path.basename(urlparse(archivo_url).path)
+
+    # 2. Si no hay query con archivo, usamos el path directamente
+    return os.path.basename(parsed.path) if parsed.path else None
 
 def download_resource(url, folder, filename):
     # Verificar si es un archivo JavaScript (aunque ya lo filtramos antes)
@@ -130,19 +144,18 @@ def download_resource(url, folder, filename):
     try:
         response = requests.get(url, stream=True, timeout=15, verify=False)
         if response.status_code == 200:
-            #file_path = os.path.join(folder, filename)
+            file_path = os.path.join(folder, filename)
+
             with open(file_path, 'wb') as file:
                 response.raw.decode_content = True
                 shutil.copyfileobj(response.raw, file)
-                #print(f"Descargado: {filename}")
+                    escribir_log("Descargado: "+filename)
             #return True
             return os.path.join(folder, filename)
         else:
-            print(f"Error al descargar {url} - Código de estado: {response.status_code}")
-            escribir_log("Error al descargar "+url+" - Código de estado: "+response.status_code)
+            escribir_log("Error al descargar "+url+" - Código de estado: "+str(response.status_code))
             return False
     except Exception as e:
-        print(f"Error al descargar {url}: {str(e)}")
         escribir_log("Error al descargar "+url+": "+str(e))
         return False
 

@@ -2,3 +2,15 @@ env/
 paginas/
 *.log
 .env
+paginas_archivo/
+dist/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+logs/
+.*spec
+cache/
+build/
