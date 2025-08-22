@@ -217,8 +217,16 @@ def get_env_variable(variable_name, default=None):
     """
     Obtiene el valor de una variable de entorno.
     Si no existe, devuelve el valor por defecto.
+    Para FOLDER_PATH, si no existe usa un valor fijo.
     """
-    return os.getenv(variable_name, default)
+    value = os.getenv(variable_name, default)
+    
+    # Validación específica para FOLDER_PATH
+    if variable_name == 'FOLDER_PATH' and not value:
+        value = "/var/www/html/paginas_archivo/"  # Tu ruta fija aquí
+    
+    return value
+
 
 
 def obtener_dominio(url: str) -> str:
@@ -277,5 +285,6 @@ if __name__ == "__main__":
 
         datos = {"web_code": random_code, "path_folder": folder}
         response_json(True, "Pagina descargada.",datos)
+
     else:
         response_json(False, "Error al descargar la página web "+url+folder)
