@@ -1,5 +1,6 @@
 import os
 import requests
+import hashlib
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse, parse_qs, unquote
 import shutil
@@ -15,7 +16,7 @@ import argparse
 import subprocess
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-def download_url(url, folder, folder_cache):
+def download_url(url, folder, folder_cache, main_domain):
     # Crear la carpeta si no existe
     if not os.path.exists(folder):
         os.makedirs(folder)
@@ -76,24 +77,24 @@ def download_url(url, folder, folder_cache):
                     resource_url = urljoin(url, tag['href'])
                     
                     resource_name = os.path.basename(urlparse(resource_url).path)
-
-                    cached_path = download_resource(resource_url, folder_cache, resource_name)
+                    
+                    cached_path = download_resource(resource_url, folder, resource_name, folder_cache, main_domain)
                     
                     if cached_path:
                         tag['href'] = cached_path  # Apunta al recurso que hay en cache
 
             elif tag.name == 'img' and tag.get('src'):
                 resource_url = urljoin(url, tag['src'])
-                urlParsed = urlparse(resource_url)
                 resource_name = obtener_nombre_archivo(resource_url)
-                cached_path = download_resource(resource_url, folder_cache, resource_name)
+                cached_path = download_resource(resource_url, folder, resource_name, folder_cache, main_domain)
                 if cached_path:
                     tag['src'] = cached_path  # Apunta al recurso que hay en cache
+
 
             elif tag.name == 'script' and tag.get('src'):
                 resource_url = urljoin(url, tag['src'])
                 resource_name = os.path.basename(urlparse(resource_url).path)
-                cached_path = download_resource(resource_url, folder_cache, resource_name)
+                cached_path = download_resource(resource_url, folder, resource_name, folder_cache, main_domain)
                 if cached_path:
                     tag['src'] = cached_path  # Apunta al recurso que hay en cache 
         #Guardar HTML actualizado en el folder con las rutas correspondientes existentes en cache
@@ -101,8 +102,9 @@ def download_url(url, folder, folder_cache):
         with open(html_file, 'w', encoding='utf-8') as file:
             #file.write(response.text)
             file.write(str(soup))
-
-        return True
+        escribir_log("Página guardada en: " + html_file)
+        return html_file
+        #return True
     
     except Exception as e:
         print(f"Error al procesar {url}: {str(e)}")
@@ -110,48 +112,67 @@ def download_url(url, folder, folder_cache):
         return False
 
 
-#CACHE_FOLDER = 'cache'
-ALLOWED_EXTENSIONS = {".css", ".js", ".png", ".jpg", ".jpeg"}
+
 def obtener_nombre_archivo(url: str) -> str:
     parsed = urlparse(url)
-
     # 1. Intentamos sacar el nombre del archivo desde la query (?url=...)
     query_params = parse_qs(parsed.query)
     archivo_url = query_params.get("url", [None])[0]
-    
     if archivo_url:  
         archivo_url = unquote(archivo_url)
-        return os.path.basename(urlparse(archivo_url).path)
+        nombre = os.path.basename(urlparse(archivo_url).path)
+    else:
+        nombre = os.path.basename(parsed.path) if parsed.path else None
 
+    if not nombre or "." not in nombre:
+        hash_val = hashlib.md5(url.encode()).hexdigest()
+        nombre = f"{hash_val}.bin"
+    return nombre
     # 2. Si no hay query con archivo, usamos el path directamente
-    return os.path.basename(parsed.path) if parsed.path else None
+   # return os.path.basename(parsed.path) if parsed.path else None
 
-def download_resource(url, folder, filename):
-    # Verificar si es un archivo JavaScript (aunque ya lo filtramos antes)
-    # Descargar el recurso
+#CACHE_FOLDER = 'cache'
+ALLOWED_EXTENSIONS = {".css", ".js", ".png", ".jpg", ".jpeg"}
+def download_resource(url, folder, filename, folder_cache, main_domain):
+    parsed = urlparse(url)
+    domain = parsed.netloc
+    resource_path = parsed.path.lstrip("/")   # ejemplo: "archivos/Noticias/2025/CONDENA_2/14_web.jpg"
     ext = os.path.splitext(filename)[1].lower()
+
     if ext not in ALLOWED_EXTENSIONS:
         return None  # Ignorar archivos no permitidos
 
-    os.makedirs(folder, exist_ok=True)  # Asegurarse de que la carpeta exista
-    file_path = os.path.join(folder, filename)
-    #file_path = os.path.join(folder, filename)
+    main_cache_folder = os.path.join(folder_cache, main_domain)
+    
+    if domain != main_domain:
+        file_path = os.path.join(main_cache_folder, domain, resource_path)
+        relative_path = os.path.join("../cache", main_domain, domain, resource_path).replace("\\", "/")
+    else:
+        file_path = os.path.join(main_cache_folder, resource_path)
+        relative_path = os.path.join("../cache", main_domain, resource_path).replace("\\", "/")
+
+    #file_path = os.path.join(domain_cache_folder, resource_path)
+
+    os.makedirs(os.path.dirname(file_path), exist_ok=True) # Asegurarse de que la carpeta exista
+    
+    #relative_path = os.path.join("../cache", domain, resource_path).replace("\\", "/") #ruta relativa que se deberia de insertar en el HTML
+    
+    print(f"FILEPATH:  {file_path}")
     
     if os.path.exists(file_path):
-        escribir_log(f"El archivo {filename} ya existe en {folder}. Usando...")
-        return True  # El archivo ya existe, no es necesario descargarlo
-    
+        escribir_log(f"El archivo {filename} ya existe en {relative_path}. Usando...")
+        return relative_path
+
     try:
         response = requests.get(url, stream=True, timeout=15, verify=False)
         if response.status_code == 200:
-            file_path = os.path.join(folder, filename)
-
+            #file_path = os.path.join(folder, filename)
             with open(file_path, 'wb') as file:
                 response.raw.decode_content = True
                 shutil.copyfileobj(response.raw, file)
-                escribir_log("Descargado: "+filename)
+                escribir_log(f"Descargado: {relative_path}")
             #return True
-            return os.path.join(folder, filename)
+            return relative_path
         else:
             escribir_log("Error al descargar "+url+" - Código de estado: "+str(response.status_code))
             return False
@@ -199,6 +220,28 @@ def get_env_variable(variable_name, default=None):
     """
     return os.getenv(variable_name, default)
 
+
+def obtener_dominio(url: str) -> str:
+    parsed = urlparse(url) #ejemplo de dominio www.ministeriopublico.gov.py
+    return parsed.netloc
+
+def get_cache_domain_folder(folder_cache: str, url: str) -> str:
+    dominio = obtener_dominio(url)
+    domain_folder = os.path.join(folder_cache,dominio)
+    os.makedirs(domain_folder, exist_ok=True)
+    return domain_folder
+
+def normalize_domain(domain):
+    if not domain:
+        return None
+
+    domain = domain.lower().strip()
+    if domain.startswith("www."):
+        domain = domain[4:]
+
+    return domain  
+
+
 if __name__ == "__main__":
     # Cargar las variables de entorno desde el archivo .env
     load_dotenv()
@@ -211,7 +254,11 @@ if __name__ == "__main__":
     if not url.startswith(('http://', 'https://')):
         url = 'https://' + url
     
-    folder_path = get_env_variable('FOLDER_PATH')   
+    parsed=urlparse(url)
+    main_domain = normalize_domain(parsed.netloc)
+
+    print(f"Dominio Principal: {main_domain}")
+    folder_path = get_env_variable('FOLDER_PATH')
     folder_cache = get_env_variable('CACHE_FOLDER')
 
     timestamp = int(time.time())
@@ -222,12 +269,13 @@ if __name__ == "__main__":
         folder_path = "/var/www/html/paginas_archivo/"
     
     if not folder_cache:
-        folder_cache = "/var/www/html/cache/" #valor por defecto si no existe la variable de entorno
+        folder_cache = "/var/www/html/paginas_archivo/cache/" #valor por defecto si no existe la variable de entorno
+        #folder_cache = os.path.join(folder_path, "cache")
 
     folder = os.path.join(folder_path, random_code)
+    if download_url(url, folder, folder_cache, main_domain):
 
-    if download_url(url, folder, folder_cache):
         datos = {"web_code": random_code, "path_folder": folder}
         response_json(True, "Pagina descargada.",datos)
     else:
-        response_json(False, "Error al descargar la página web "+url)
+        response_json(False, "Error al descargar la página web "+url+folder)
