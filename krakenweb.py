@@ -157,7 +157,7 @@ def download_resource(url, folder, filename, folder_cache, main_domain):
     
     #relative_path = os.path.join("../cache", domain, resource_path).replace("\\", "/") #ruta relativa que se deberia de insertar en el HTML
     
-    print(f"FILEPATH:  {file_path}")
+    #print(f"FILEPATH:  {file_path}")
     
     if os.path.exists(file_path):
         escribir_log(f"El archivo {filename} ya existe en {relative_path}. Usando...")
@@ -257,7 +257,7 @@ if __name__ == "__main__":
     parsed=urlparse(url)
     main_domain = normalize_domain(parsed.netloc)
 
-    print(f"Dominio Principal: {main_domain}")
+    #print(f"Dominio Principal: {main_domain}")
     folder_path = get_env_variable('FOLDER_PATH')
     folder_cache = get_env_variable('CACHE_FOLDER')
 
