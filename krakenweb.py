@@ -16,7 +16,7 @@ import argparse
 import subprocess
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-def download_url(url, folder, folder_cache, main_domain):
+def download_url(url, folder, folder_cache, main_domain, useProxy = False):
     # Crear la carpeta si no existe
     if not os.path.exists(folder):
         os.makedirs(folder)
@@ -39,33 +39,60 @@ def download_url(url, folder, folder_cache, main_domain):
         capturar = []
         if "abc.com.py" in url:
             # Sale por CURL usando proxy
-            #proxy_arg = f"-x {proxy_url}"
-            result = subprocess.run(
-                ["curl", "-k", "-s", "-x", proxy_url, url],
-                capture_output=True, text=True, check=True
-            )
+            if useProxy:
+                result = subprocess.run(
+                    ["curl", "-k", "-s", "-x", proxy_url, "-w", "%{http_code}", url],
+                    capture_output=True, text=True
+                )
+                status_code = result.stdout[-3:]  # los últimos 3 son el código
+                escribir_log(f"Sale por CURL con proxy - {url} HTTP {status_code}")
+            else:
+                result = subprocess.run(
+                    ["curl", "-k", "-s", "-w", "%{http_code}", url],
+                    capture_output=True, text=True
+                )
+                status_code = result.stdout[-3:]  # los últimos 3 son el código
+                escribir_log(f"Sale por CURL sin proxy - {url} HTTP {status_code}")
             
-            html_string = result.stdout
+            # El contenido y el código HTTP van juntos, los separamos
+            if result.returncode != 0:
+                escribir_log(f"Error CURL: {result.stderr.strip()}")
+                return False, None, f"Error CURL: {result.stderr.strip()}"
+
+            html_string = result.stdout[:-3]  # quitar últimos 3 caracteres (código HTTP)
+            #status_code = result.stdout[-3:]  # los últimos 3 son el código
             capturar = ['link', 'img']
-            escribir_log("Sale por CURL con proxy")
+            
+
+            if status_code != 200:
+                    return False, status_code, f"Error HTTP {status_code}"
 
             if not html_string:
                 escribir_log(f"Error al descargar {url} - No se recibió contenido.")
-                html_string = None
+                #html_string = None
+                return False, status_code, "Sin contenido recibido"
         else:
             # Sale por REQUESTS usando proxy
             try:
-                response = requests.get(url, verify=False, proxies=proxies, timeout=50)
+                #response = requests.get(url, verify=False, proxies=proxies, timeout=50)
+                if useProxy:
+                    escribir_log(f"Sale por REQUESTS con proxy - {url}")
+                    response = requests.get(url, verify=False, proxies=proxies, timeout=50)
+                else:
+                    escribir_log(f"Sale por REQUESTS sin proxy - {url}")
+                    response = requests.get(url, verify=False, timeout=50)
+
+                status_code = response.status_code
                 html_string = response.text
                 capturar = ['link', 'img', 'script']
-                escribir_log("Sale por REQUESTS con proxy")
+                escribir_log(f"Resultado del REQUESTS - {url} HTTP {status_code}")
 
                 if response.status_code != 200:
-                    escribir_log(f"Error al descargar {url} - Código de estado: {response.status_code}")
-                    return False
+                    return False, status_code, f"Error al descargar {url} - Código de estado: {response.status_code}"
+            
             except requests.RequestException as e:
                 escribir_log(f"Error de conexión: {e}")
-                return False
+                return False, None, f"Error de conexión: {e}"
 
         # Parsear el HTML para encontrar recursos
         soup = BeautifulSoup(html_string, 'html.parser')
@@ -100,16 +127,14 @@ def download_url(url, folder, folder_cache, main_domain):
         #Guardar HTML actualizado en el folder con las rutas correspondientes existentes en cache
         html_file = os.path.join(folder, "index.html")            
         with open(html_file, 'w', encoding='utf-8') as file:
-            #file.write(response.text)
             file.write(str(soup))
         escribir_log("Página guardada en: " + html_file)
-        return html_file
-        #return True
+        #return html_file
+        return True, status_code, "Descarga exitosa"
     
     except Exception as e:
-        print(f"Error al procesar {url}: {str(e)}")
         escribir_log("Error al procesar "+url+": "+str(e))
-        return False
+        return False, None, f"Error: {str(e)}"
 
 
 
@@ -281,11 +306,11 @@ if __name__ == "__main__":
         #folder_cache = os.path.join(folder_path, "cache")
 
     folder = os.path.join(folder_path, random_code)
-    if download_url(url, folder, folder_cache, main_domain):
-
-        datos = {"web_code": random_code, "path_folder": folder}
+    
+    success, code, msg = download_url(url, folder, folder_cache, main_domain)
+    if success:
+        datos = {"web_code": random_code, "path_folder": folder,"http_code": code}
         response_json(True, "Pagina descargada.",datos)
-
     else:
         datos = {"http_code": code, "message_error": msg}
         response_json(False, "Error al descargar la pagina web "+url, datos) 
